@@ -1,385 +1,1277 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <title>Offline BT Chat</title>
-  <style>
-    :root {
-      --bg-color: #121826;
-      --card-bg: #1e293b;
-      --accent-color: #3b82f6;
-      --text-color: #f8fafc;
-      --online-color: #10b981;
-      --offline-color: #ef4444;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<title>Signal Link</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap');
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    }
+  :root {
+    --bg: #0b0e14;
+    --surface: #141a24;
+    --raised: #1c2430;
+    --raised-hi: #232c3a;
+    --border: #263042;
+    --accent: #5eead4;
+    --accent-dim: #2c7a70;
+    --accent-ink: #04211c;
+    --text: #f5f7fa;
+    --text-dim: #93a1b5;
+    --text-faint: #5b6a80;
+    --danger: #fb7185;
+    --danger-dim: #4a2530;
+    --radius-lg: 20px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
 
-    body {
-      background-color: var(--bg-color);
-      color: var(--text-color);
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-      overflow: hidden;
-    }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
-    /* Header Bar */
-    header {
-      background-color: var(--card-bg);
-      padding: 15px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid #334155;
-    }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overscroll-behavior: none;
+  }
 
-    .user-info {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
+  body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 
-    .status-dot {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background-color: var(--offline-color);
-      transition: background-color 0.3s ease;
-    }
+  ::selection { background: var(--accent-dim); color: var(--text); }
 
-    .status-dot.online {
-      background-color: var(--online-color);
-      box-shadow: 0 0 8px var(--online-color);
-    }
+  button { font-family: inherit; }
 
-    .title-area h2 {
-      font-size: 1.1rem;
-    }
+  /* ===== Header ===== */
+  header {
+    background: var(--surface);
+    padding: calc(14px + var(--safe-top)) 16px 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    z-index: 20;
+    flex-shrink: 0;
+  }
 
-    .title-area p {
-      font-size: 0.75rem;
-      color: #94a3b8;
-    }
+  .user-info { display: flex; align-items: center; gap: 12px; min-width: 0; }
 
-    .btn-settings {
-      background: none;
-      border: none;
-      color: var(--text-color);
-      font-size: 1.2rem;
-      cursor: pointer;
-    }
+  /* Signature element: animated signal-strength indicator instead of a plain dot */
+  .signal {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .signal .bar {
+    width: 4px;
+    background: var(--text-faint);
+    border-radius: 2px;
+    transition: background 0.25s ease, opacity 0.25s ease;
+  }
+  .signal .bar:nth-child(1) { height: 40%; }
+  .signal .bar:nth-child(2) { height: 60%; }
+  .signal .bar:nth-child(3) { height: 80%; }
+  .signal .bar:nth-child(4) { height: 100%; }
 
-    /* Message Area */
-    #chat-box {
-      flex: 1;
-      padding: 15px;
-      overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
+  .signal.online .bar { background: var(--accent); }
+  .signal.online .bar:nth-child(1) { animation: pulse 1.6s ease-in-out infinite; }
+  .signal.online .bar:nth-child(2) { animation: pulse 1.6s ease-in-out infinite 0.15s; }
+  .signal.online .bar:nth-child(3) { animation: pulse 1.6s ease-in-out infinite 0.3s; }
+  .signal.online .bar:nth-child(4) { animation: pulse 1.6s ease-in-out infinite 0.45s; }
 
-    .msg {
-      max-width: 75%;
-      padding: 10px 14px;
-      border-radius: 12px;
-      font-size: 0.95rem;
-      line-height: 1.4;
-      word-break: break-word;
-    }
+  .signal.searching .bar { opacity: 0.35; }
+  .signal.searching .bar:nth-child(1) { animation: pulse 1s ease-in-out infinite; }
+  .signal.searching .bar:nth-child(2) { animation: pulse 1s ease-in-out infinite 0.1s; }
+  .signal.searching .bar:nth-child(3) { animation: pulse 1s ease-in-out infinite 0.2s; }
+  .signal.searching .bar:nth-child(4) { animation: pulse 1s ease-in-out infinite 0.3s; }
 
-    .msg.sent {
-      align-self: flex-end;
-      background-color: var(--accent-color);
-      color: #fff;
-      border-bottom-right-radius: 2px;
-    }
+  .signal.offline .bar { background: var(--danger); opacity: 0.5; }
 
-    .msg.received {
-      align-self: flex-start;
-      background-color: var(--card-bg);
-      color: var(--text-color);
-      border-bottom-left-radius: 2px;
-    }
+  @keyframes pulse {
+    0%, 100% { opacity: 0.4; transform: scaleY(0.85); }
+    50% { opacity: 1; transform: scaleY(1); }
+  }
 
-    .msg .time {
-      font-size: 0.65rem;
-      opacity: 0.7;
-      margin-top: 4px;
-      text-align: right;
-    }
+  .title-area { min-width: 0; }
+  .title-area h2 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.02rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .title-area p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+  }
 
-    /* Input Controls */
-    footer {
-      background-color: var(--card-bg);
-      padding: 10px 15px;
-      display: flex;
-      gap: 10px;
-      border-top: 1px solid #334155;
-    }
+  .header-actions { display: flex; gap: 4px; }
 
-    footer input {
-      flex: 1;
-      background-color: #0f172a;
-      border: 1px solid #334155;
-      color: var(--text-color);
-      padding: 12px 16px;
-      border-radius: 24px;
-      outline: none;
-    }
+  .icon-btn {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .icon-btn:active { background: var(--raised); color: var(--text); }
+  .icon-btn svg { width: 20px; height: 20px; }
 
-    footer button {
-      background-color: var(--accent-color);
-      border: none;
-      color: white;
-      padding: 0 18px;
-      border-radius: 24px;
-      font-weight: bold;
-      cursor: pointer;
-    }
+  /* ===== Chat area ===== */
+  #chat-box {
+    flex: 1;
+    padding: 16px 14px 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    -webkit-overflow-scrolling: touch;
+  }
 
-    /* Config Overlay */
-    #config-modal {
-      position: fixed;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.85);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 20px;
-      z-index: 10;
-    }
+  .day-divider {
+    align-self: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-faint);
+    background: var(--surface);
+    padding: 4px 12px;
+    border-radius: 999px;
+    margin: 10px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
 
-    .modal-content {
-      background-color: var(--card-bg);
-      padding: 20px;
-      border-radius: 12px;
-    }
+  .msg-row {
+    display: flex;
+    flex-direction: column;
+    max-width: 78%;
+    margin-top: 6px;
+    animation: rise 0.18s ease;
+  }
+  @keyframes rise {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .msg-row.sent { align-self: flex-end; align-items: flex-end; }
+  .msg-row.received { align-self: flex-start; align-items: flex-start; }
 
-    .modal-content h3 {
-      margin-bottom: 12px;
-    }
+  .bubble {
+    padding: 9px 13px;
+    border-radius: var(--radius-md);
+    font-size: 0.95rem;
+    line-height: 1.42;
+    word-break: break-word;
+    white-space: pre-wrap;
+  }
+  .msg-row.sent .bubble {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-bottom-right-radius: 4px;
+  }
+  .msg-row.received .bubble {
+    background: var(--raised);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
 
-    .modal-content select, .modal-content button {
-      width: 100%;
-      padding: 12px;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: none;
-    }
+  .bubble b { font-weight: 700; }
+  .bubble i { font-style: italic; }
+  .bubble code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85em;
+    background: rgba(0,0,0,0.18);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+  .msg-row.received .bubble code { background: rgba(0,0,0,0.28); }
+  .bubble s { opacity: 0.75; }
 
-    .modal-content select {
-      background: #0f172a;
-      color: white;
-    }
+  .meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-faint);
+    margin-top: 3px;
+    padding: 0 3px;
+    display: flex;
+    gap: 5px;
+    align-items: center;
+  }
+  .meta .status-tick { color: var(--accent); }
 
-    .modal-content button {
-      background: var(--accent-color);
-      color: white;
-      font-weight: bold;
-    }
+  /* File / media bubbles */
+  .file-bubble {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    border-radius: var(--radius-md);
+    background: var(--raised);
+    min-width: 200px;
+  }
+  .msg-row.sent .file-bubble { background: var(--accent-dim); }
+  .file-icon {
+    width: 38px; height: 38px;
+    border-radius: var(--radius-sm);
+    background: var(--raised-hi);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+    color: var(--accent);
+  }
+  .msg-row.sent .file-icon { background: rgba(0,0,0,0.2); }
+  .file-icon svg { width: 20px; height: 20px; }
+  .file-info { min-width: 0; flex: 1; }
+  .file-name {
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+  .msg-row.sent .file-sub { color: rgba(4,33,28,0.65); }
 
-    .hidden {
-      display: none !important;
-    }
-  </style>
+  .progress-track {
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    margin-top: 6px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--accent);
+    width: 0%;
+    transition: width 0.15s ease;
+  }
+
+  .img-bubble {
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    max-width: 240px;
+    line-height: 0;
+    cursor: pointer;
+  }
+  .img-bubble img { width: 100%; display: block; }
+
+  .system-msg {
+    align-self: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    color: var(--text-faint);
+    background: var(--surface);
+    padding: 5px 12px;
+    border-radius: 999px;
+    margin: 4px 0;
+  }
+
+  /* Empty state */
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    color: var(--text-faint);
+    text-align: center;
+    padding: 40px;
+  }
+  .empty-state svg { width: 46px; height: 46px; opacity: 0.5; margin-bottom: 6px; }
+  .empty-state h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1rem; color: var(--text-dim); font-weight: 600; }
+  .empty-state p { font-size: 0.8rem; max-width: 240px; }
+
+  /* ===== Emoji panel ===== */
+  #emoji-panel {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.22s ease;
+    flex-shrink: 0;
+  }
+  #emoji-panel.open { max-height: 210px; }
+  .emoji-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 2px;
+    padding: 10px;
+    max-height: 210px;
+    overflow-y: auto;
+  }
+  .emoji-grid button {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    padding: 6px 0;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .emoji-grid button:active { background: var(--raised); }
+
+  /* ===== Format toolbar ===== */
+  #format-bar {
+    display: flex;
+    gap: 6px;
+    padding: 8px 14px 0;
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .fmt-btn {
+    background: var(--raised);
+    border: none;
+    color: var(--text-dim);
+    width: 30px; height: 30px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fmt-btn:active { background: var(--raised-hi); color: var(--text); }
+  .fmt-btn.italic-btn { font-style: italic; }
+  .fmt-btn.code-btn { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+
+  /* ===== Footer / input ===== */
+  footer {
+    background: var(--surface);
+    padding: 10px 12px calc(10px + var(--safe-bottom));
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+
+  .input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    background: var(--raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 4px 6px 4px 14px;
+    gap: 4px;
+  }
+
+  #msg-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 0.95rem;
+    padding: 8px 0;
+    outline: none;
+    resize: none;
+    max-height: 110px;
+    line-height: 1.35;
+    font-family: inherit;
+  }
+  #msg-input::placeholder { color: var(--text-faint); }
+
+  .round-btn {
+    border: none;
+    border-radius: 50%;
+    width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.1s ease, background 0.15s ease;
+  }
+  .round-btn:active { transform: scale(0.92); }
+  .round-btn svg { width: 19px; height: 19px; }
+
+  .btn-ghost { background: none; color: var(--text-dim); }
+  .btn-ghost:active { background: var(--raised-hi); }
+
+  .btn-send {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+  .btn-send:disabled { background: var(--raised-hi); color: var(--text-faint); }
+
+  /* ===== Attach menu ===== */
+  #attach-menu {
+    position: fixed;
+    left: 12px; right: 12px;
+    bottom: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: 10px 8px calc(16px + var(--safe-bottom));
+    transform: translateY(100%);
+    transition: transform 0.22s ease;
+    z-index: 30;
+  }
+  #attach-menu.open { transform: translateY(0); }
+  .attach-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 0 auto 12px;
+  }
+  .attach-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+  }
+  .attach-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 7px;
+    background: none;
+    border: none;
+    padding: 12px 4px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .attach-item:active { background: var(--raised); }
+  .attach-item .attach-icon {
+    width: 46px; height: 46px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .attach-item .attach-icon svg { width: 22px; height: 22px; }
+  .attach-item span { font-size: 0.68rem; color: var(--text-dim); }
+  .attach-item:nth-child(1) .attach-icon { background: #7c3aed30; color: #a78bfa; }
+  .attach-item:nth-child(2) .attach-icon { background: #f5972430; color: #fbbf24; }
+  .attach-item:nth-child(3) .attach-icon { background: #10b98130; color: #34d399; }
+  .attach-item:nth-child(4) .attach-icon { background: #f4359630; color: #fb7185; }
+
+  #backdrop {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 25;
+  }
+  #backdrop.show { opacity: 1; pointer-events: auto; }
+
+  input[type="file"] { display: none; }
+
+  /* ===== Config modal ===== */
+  #config-modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(4,6,10,0.92);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 22px;
+    z-index: 50;
+    backdrop-filter: blur(6px);
+  }
+
+  .modal-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px 20px;
+    border-radius: var(--radius-lg);
+    position: relative;
+  }
+
+  .modal-content h3 {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.15rem;
+    margin-bottom: 6px;
+  }
+  .modal-content .sub {
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    margin-bottom: 18px;
+    line-height: 1.4;
+  }
+
+  .modal-content select, .modal-content .modal-btn {
+    width: 100%;
+    padding: 13px;
+    margin-top: 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+
+  .modal-content select {
+    background: var(--raised);
+    color: var(--text);
+    appearance: none;
+  }
+
+  .modal-btn {
+    background: var(--raised);
+    color: var(--text);
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--border);
+  }
+  .modal-btn.primary {
+    background: var(--accent);
+    color: var(--accent-ink);
+    border-color: var(--accent);
+  }
+  .modal-close {
+    position: absolute;
+    top: 14px; right: 14px;
+    background: none; border: none;
+    color: var(--text-dim);
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+  }
+
+  .hidden { display: none !important; }
+
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Lightbox */
+  #lightbox {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.94);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 60;
+    padding: 20px;
+  }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  #lightbox .lb-close {
+    position: absolute; top: calc(16px + var(--safe-top)); right: 16px;
+    background: rgba(255,255,255,0.1); border: none; color: #fff;
+    width: 38px; height: 38px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
 </head>
 <body>
 
-  <!-- App Header -->
-  <header>
-    <div class="user-info">
-      <div id="status-dot" class="status-dot"></div>
-      <div class="title-area">
-        <h2 id="peer-name">Offline Contact</h2>
-        <p id="status-text">Disconnected</p>
-      </div>
+<header>
+  <div class="user-info">
+    <div id="signal-indicator" class="signal offline">
+      <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
     </div>
-    <button class="btn-settings" onclick="openConfig()">⚙️</button>
-  </header>
-
-  <!-- Chat Log -->
-  <main id="chat-box"></main>
-
-  <!-- Message Input Bar -->
-  <footer>
-    <input type="text" id="msg-input" placeholder="Type a message..." />
-    <button onclick="sendMessage()">Send</button>
-  </footer>
-
-  <!-- Setup Overlay (First Launch Only) -->
-  <div id="config-modal">
-    <div class="modal-content">
-      <h3>Target Device Setup</h3>
-      <p style="font-size:0.85rem; color:#94a3b8;">Ensure Mobile B is paired in phone settings first.</p>
-      
-      <button onclick="fetchPairedDevices()">1. Scan Paired Devices</button>
-
-      <select id="device-select">
-        <option value="">-- Select Target Device --</option>
-      </select>
-
-      <button onclick="saveAndConnect()">2. Save Target & Auto-Connect</button>
+    <div class="title-area">
+      <h2 id="peer-name">Offline Contact</h2>
+      <p id="status-text">DISCONNECTED</p>
     </div>
   </div>
+  <div class="header-actions">
+    <button class="icon-btn" onclick="clearChat()" title="Clear chat">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+    </button>
+    <button class="icon-btn" onclick="openConfig()" title="Settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
+  </div>
+</header>
 
-  <script>
-    let targetAddress = localStorage.getItem('target_mac') || null;
-    let isConnected = false;
-    let checkInterval = null;
+<main id="chat-box"></main>
 
-    document.addEventListener('deviceready', onDeviceReady, false);
+<div id="emoji-panel">
+  <div class="emoji-grid" id="emoji-grid"></div>
+</div>
 
-    function onDeviceReady() {
-      // 1. Check if Bluetooth is enabled
-      bluetoothSerial.isEnabled(
+<div id="format-bar">
+  <button class="fmt-btn" onclick="wrapSelection('*','*')" title="Bold">B</button>
+  <button class="fmt-btn italic-btn" onclick="wrapSelection('_','_')" title="Italic">I</button>
+  <button class="fmt-btn" onclick="wrapSelection('~','~')" title="Strikethrough"><s>S</s></button>
+  <button class="fmt-btn code-btn" onclick="wrapSelection('`','`')" title="Code">&lt;/&gt;</button>
+</div>
+
+<footer>
+  <button class="round-btn btn-ghost" onclick="toggleAttachMenu()" title="Attach">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+  </button>
+  <div class="input-wrap">
+    <textarea id="msg-input" rows="1" placeholder="Message" oninput="autoGrow(this)"></textarea>
+    <button class="round-btn btn-ghost" onclick="toggleEmojiPanel()" title="Emoji">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/></svg>
+    </button>
+  </div>
+  <button class="round-btn btn-send" id="send-btn" onclick="sendMessage()" title="Send">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+  </button>
+</footer>
+
+<div id="backdrop" onclick="closeAttachMenu()"></div>
+<div id="attach-menu">
+  <div class="attach-handle"></div>
+  <div class="attach-grid">
+    <button class="attach-item" onclick="triggerPicker('image')">
+      <div class="attach-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></div>
+      <span>Photo</span>
+    </button>
+    <button class="attach-item" onclick="triggerPicker('video')">
+      <div class="attach-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></div>
+      <span>Video</span>
+    </button>
+    <button class="attach-item" onclick="triggerPicker('document')">
+      <div class="attach-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div>
+      <span>Document</span>
+    </button>
+    <button class="attach-item" onclick="triggerPicker('any')">
+      <div class="attach-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg></div>
+      <span>Any file</span>
+    </button>
+  </div>
+</div>
+
+<input type="file" id="file-picker-image" accept="image/*" onchange="handleFilePicked(event)">
+<input type="file" id="file-picker-video" accept="video/*" onchange="handleFilePicked(event)">
+<input type="file" id="file-picker-document" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip" onchange="handleFilePicked(event)">
+<input type="file" id="file-picker-any" onchange="handleFilePicked(event)">
+
+<div id="config-modal" class="hidden">
+  <div class="modal-content">
+    <button class="modal-close" id="modal-close-btn" onclick="closeConfig()">&times;</button>
+    <h3>Target Device Setup</h3>
+    <p class="sub">Ensure the other device is paired in your phone's Bluetooth settings first, then select it below.</p>
+
+    <button class="modal-btn" onclick="fetchPairedDevices()">Scan paired devices</button>
+
+    <select id="device-select">
+      <option value="">-- Select target device --</option>
+    </select>
+
+    <button class="modal-btn primary" onclick="saveAndConnect()">Save target &amp; connect</button>
+  </div>
+</div>
+
+<div id="lightbox" class="hidden">
+  <button class="lb-close" onclick="closeLightbox()">&times;</button>
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<script>
+/* =========================================================
+   STATE
+   ========================================================= */
+let targetAddress = localStorage.getItem('target_mac') || null;
+let peerLabel = localStorage.getItem('target_name') || 'Offline Contact';
+let isConnected = false;
+let checkInterval = null;
+let sendingLock = false;
+
+// Chunked file-transfer protocol state
+const CHUNK_SIZE = 900;          // bytes of base64 per frame, kept well under typical MTU/buffer limits
+const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB safety cap - raw Bluetooth Serial is slow (tens of KB/s realistic)
+let incomingTransfer = null;      // { id, name, mime, size, totalChunks, received:[], bubbleEl }
+let outgoingQueue = [];           // queued chunk strings waiting to be written serially
+let isWriting = false;
+
+const FRAME_START = 'BTF1|';      // file-start frame prefix
+const FRAME_CHUNK = 'BTC1|';      // file-chunk frame prefix
+const FRAME_END   = 'BTE1|';      // file-end frame prefix
+const FRAME_TEXT  = 'BTM1|';      // plain text/formatted message frame prefix
+
+/* =========================================================
+   DEVICE READY / BLUETOOTH LIFECYCLE
+   ========================================================= */
+document.addEventListener('deviceready', onDeviceReady, false);
+
+function onDeviceReady() {
+  document.getElementById('peer-name').textContent = peerLabel;
+
+  bluetoothSerial.isEnabled(
+    () => initBluetooth(),
+    () => {
+      bluetoothSerial.enable(
         () => initBluetooth(),
-        () => {
-          bluetoothSerial.enable(
-            () => initBluetooth(),
-            () => alert("Bluetooth access is required for offline chat.")
-          );
-        }
+        () => alert("Bluetooth access is required for offline chat.")
       );
     }
+  );
 
-    function initBluetooth() {
-      // Start listening for incoming connections from Mobile B
-      bluetoothSerial.listen(
+  loadHistory();
+}
+
+function initBluetooth() {
+  bluetoothSerial.listen(
+    () => updateStatus(true),
+    () => updateStatus(false)
+  );
+
+  // Frames are newline-delimited; base64 payloads never contain '\n' so this delimiter stays safe.
+  bluetoothSerial.subscribe('\n', (data) => {
+    handleIncomingFrame(data.replace(/\r?\n$/, ''));
+  });
+
+  if (targetAddress) {
+    startAutoConnectLoop();
+  } else {
+    openConfig();
+  }
+}
+
+function startAutoConnectLoop() {
+  if (checkInterval) clearInterval(checkInterval);
+  attemptConnection();
+  checkInterval = setInterval(() => {
+    if (!isConnected) attemptConnection();
+  }, 3000);
+}
+
+function attemptConnection() {
+  bluetoothSerial.isConnected(
+    () => updateStatus(true),
+    () => {
+      updateStatus(false, true);
+      bluetoothSerial.connect(
+        targetAddress,
         () => updateStatus(true),
-        () => updateStatus(false)
-      );
-
-      // Listen for incoming message strings
-      bluetoothSerial.subscribe('\n', (data) => {
-        appendMessage(data.trim(), 'received');
-      });
-
-      // If target device is already saved, launch auto-connect sequence
-      if (targetAddress) {
-        document.getElementById('config-modal').classList.add('hidden');
-        startAutoConnectLoop();
-      }
-    }
-
-    // Attempt background reconnection every 3 seconds until connected
-    function startAutoConnectLoop() {
-      attemptConnection();
-      checkInterval = setInterval(() => {
-        if (!isConnected) {
-          attemptConnection();
-        }
-      }, 3000);
-    }
-
-    function attemptConnection() {
-      bluetoothSerial.isConnected(
-        () => updateStatus(true),
-        () => {
-          updateStatus(false);
-          // Try background connection to target MAC address
-          bluetoothSerial.connect(
-            targetAddress,
-            () => updateStatus(true),
-            () => updateStatus(false)
-          );
-        }
+        () => updateStatus(false, true)
       );
     }
+  );
+}
 
-    function sendMessage() {
-      const input = document.getElementById('msg-input');
-      const text = input.value.trim();
+function updateStatus(connected, searching) {
+  isConnected = connected;
+  const indicator = document.getElementById('signal-indicator');
+  const text = document.getElementById('status-text');
+  const sendBtn = document.getElementById('send-btn');
 
-      if (!text) return;
-      if (!isConnected) {
-        alert("Cannot send. Target device is currently offline.");
-        return;
-      }
+  indicator.classList.remove('online', 'offline', 'searching');
+  if (connected) {
+    indicator.classList.add('online');
+    text.textContent = 'ONLINE';
+  } else if (searching) {
+    indicator.classList.add('searching');
+    text.textContent = 'SEARCHING...';
+  } else {
+    indicator.classList.add('offline');
+    text.textContent = 'DISCONNECTED';
+  }
+  sendBtn.disabled = false; // keep enabled; we alert on send if actually offline
+}
 
-      // Append newline character as message delimiter
-      bluetoothSerial.write(text + "\n", () => {
-        appendMessage(text, 'sent');
-        input.value = '';
-      }, () => {
-        alert("Failed to deliver message.");
-      });
-    }
+/* =========================================================
+   TEXT SENDING (with lightweight markdown formatting)
+   ========================================================= */
+function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text) return;
 
-    function appendMessage(text, type) {
-      const chatBox = document.getElementById('chat-box');
-      const msgDiv = document.createElement('div');
-      msgDiv.className = `msg ${type}`;
-      
-      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      msgDiv.innerHTML = `${escapeHTML(text)}<div class="time">${timeStr}</div>`;
+  if (!isConnected) {
+    alert("Cannot send. Target device is currently offline.");
+    return;
+  }
 
-      chatBox.appendChild(msgDiv);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
+  const payload = { id: cryptoId(), text, ts: Date.now() };
+  writeFrame(FRAME_TEXT + JSON.stringify(payload) + '\n', () => {
+    appendTextMessage(payload.text, 'sent', payload.ts);
+    saveHistoryEntry({ kind: 'text', dir: 'sent', text: payload.text, ts: payload.ts });
+    input.value = '';
+    autoGrow(input);
+  }, () => {
+    alert("Failed to deliver message.");
+  });
+}
 
-    function updateStatus(connected) {
-      isConnected = connected;
-      const dot = document.getElementById('status-dot');
-      const text = document.getElementById('status-text');
+document.getElementById('msg-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
 
-      if (connected) {
-        dot.classList.add('online');
-        text.textContent = 'Online';
-      } else {
-        dot.classList.remove('online');
-        text.textContent = 'Offline (Searching...)';
-      }
-    }
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 110) + 'px';
+}
 
-    /* Modal / Config Logic */
-    function openConfig() {
-      document.getElementById('config-modal').classList.remove('hidden');
-      fetchPairedDevices();
-    }
+/* Simple, safe formatting: escape HTML first, then apply a restricted
+   markdown-like syntax so users can never inject raw tags. */
+function renderFormattedText(raw) {
+  let s = escapeHTML(raw);
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
+  s = s.replace(/\*([^*\n]+)\*/g, '<b>$1</b>');
+  s = s.replace(/_([^_\n]+)_/g, '<i>$1</i>');
+  s = s.replace(/~([^~\n]+)~/g, '<s>$1</s>');
+  return s;
+}
 
-    function fetchPairedDevices() {
-      bluetoothSerial.list((devices) => {
-        const select = document.getElementById('device-select');
-        select.innerHTML = '<option value="">-- Select Target Device --</option>';
-        devices.forEach(d => {
-          const opt = document.createElement('option');
-          opt.value = d.address;
-          opt.textContent = `${d.name || 'Unknown'} (${d.address})`;
-          select.appendChild(opt);
+function wrapSelection(prefix, suffix) {
+  const el = document.getElementById('msg-input');
+  const start = el.selectionStart, end = el.selectionEnd;
+  const val = el.value;
+  const selected = val.slice(start, end) || '';
+  const insertion = prefix + selected + suffix;
+  el.value = val.slice(0, start) + insertion + val.slice(end);
+  const cursor = selected ? start + insertion.length : start + prefix.length;
+  el.focus();
+  el.setSelectionRange(cursor, cursor);
+  autoGrow(el);
+}
+
+/* =========================================================
+   EMOJI PANEL
+   ========================================================= */
+const EMOJI_SET = ["😀","😁","😂","🤣","😊","😍","😘","😉","😎","🤔","😴","😭","😅","😇","🙂","🙃","😐","😮","😢","😡","👍","👎","👏","🙏","💪","🔥","✨","🎉","❤️","💙","💚","💛","🧡","💜","🖤","🤍","✅","❌","⚠️","💡","📎","📷","🎬","📄","🔗","⭐","🚀","🎯","☕","🍕","🍎","⚽","🏆","🎮","🎵","🌙","☀️","🌧️","❄️","🐶","🐱"];
+
+function buildEmojiGrid() {
+  const grid = document.getElementById('emoji-grid');
+  grid.innerHTML = '';
+  EMOJI_SET.forEach(e => {
+    const btn = document.createElement('button');
+    btn.textContent = e;
+    btn.onclick = () => insertAtCursor(e);
+    grid.appendChild(btn);
+  });
+}
+buildEmojiGrid();
+
+function insertAtCursor(str) {
+  const el = document.getElementById('msg-input');
+  const start = el.selectionStart, end = el.selectionEnd;
+  el.value = el.value.slice(0, start) + str + el.value.slice(end);
+  const cursor = start + str.length;
+  el.focus();
+  el.setSelectionRange(cursor, cursor);
+  autoGrow(el);
+}
+
+function toggleEmojiPanel() {
+  document.getElementById('emoji-panel').classList.toggle('open');
+}
+
+/* =========================================================
+   ATTACH MENU + FILE PICKING
+   ========================================================= */
+function toggleAttachMenu() {
+  document.getElementById('attach-menu').classList.toggle('open');
+  document.getElementById('backdrop').classList.toggle('show');
+}
+function closeAttachMenu() {
+  document.getElementById('attach-menu').classList.remove('open');
+  document.getElementById('backdrop').classList.remove('show');
+}
+
+function triggerPicker(kind) {
+  closeAttachMenu();
+  document.getElementById('file-picker-' + kind).click();
+}
+
+function handleFilePicked(evt) {
+  const file = evt.target.files[0];
+  evt.target.value = '';
+  if (!file) return;
+
+  if (!isConnected) {
+    alert("Cannot send. Target device is currently offline.");
+    return;
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    alert(`File is too large for Bluetooth Serial transfer (limit ${(MAX_FILE_BYTES / 1024 / 1024).toFixed(0)}MB). Raw serial transfer is slow — pick a smaller file.`);
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    const base64 = reader.result.split(',')[1];
+    sendFile(file, base64);
+  };
+  reader.onerror = () => alert("Could not read the selected file.");
+  reader.readAsDataURL(file);
+}
+
+/* =========================================================
+   CHUNKED FILE TRANSFER PROTOCOL
+   Frames (each newline-terminated):
+     BTF1|{id,name,mime,size,totalChunks,ts}      -- start
+     BTC1|{id,index}|<base64 chunk>                -- chunk
+     BTE1|{id}                                      -- end
+   ========================================================= */
+function sendFile(file, base64) {
+  const id = cryptoId();
+  const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
+  const meta = { id, name: file.name, mime: file.type || 'application/octet-stream', size: file.size, totalChunks, ts: Date.now() };
+
+  const bubbleEl = appendFileMessage(meta, 'sent', 0);
+  saveHistoryEntry({ kind: 'file', dir: 'sent', meta, ts: meta.ts, base64 });
+
+  writeFrame(FRAME_START + JSON.stringify(meta) + '\n', () => {
+    let idx = 0;
+    sendNextChunk();
+
+    function sendNextChunk() {
+      if (idx >= totalChunks) {
+        writeFrame(FRAME_END + JSON.stringify({ id }) + '\n', () => {
+          updateFileProgress(bubbleEl, 100, true);
+        }, () => {
+          alert('Transfer ended unexpectedly.');
         });
-      }, () => alert("Could not fetch paired devices. Check Android Bluetooth settings."));
-    }
-
-    function saveAndConnect() {
-      const select = document.getElementById('device-select');
-      if (!select.value) {
-        alert("Select a device first.");
         return;
       }
-
-      targetAddress = select.value;
-      localStorage.setItem('target_mac', targetAddress);
-      
-      const selectedOption = select.options[select.selectedIndex].text;
-      document.getElementById('peer-name').textContent = selectedOption.split(' (')[0];
-
-      document.getElementById('config-modal').classList.add('hidden');
-      startAutoConnectLoop();
+      const slice = base64.slice(idx * CHUNK_SIZE, (idx + 1) * CHUNK_SIZE);
+      const frame = FRAME_CHUNK + JSON.stringify({ id, index: idx }) + '|' + slice + '\n';
+      writeFrame(frame, () => {
+        idx++;
+        updateFileProgress(bubbleEl, Math.round((idx / totalChunks) * 100), false);
+        sendNextChunk();
+      }, () => {
+        alert('File transfer failed mid-stream.');
+      });
     }
+  }, () => {
+    alert('Could not start file transfer.');
+  });
+}
 
-    function escapeHTML(str) {
-      return str.replace(/[&<>'"]/g, 
-        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-      );
+/* Serialize all writes through one queue: bluetoothSerial.write calls
+   must not overlap or the two devices' frames interleave and corrupt. */
+function writeFrame(str, onOk, onFail) {
+  outgoingQueue.push({ str, onOk, onFail });
+  pumpQueue();
+}
+function pumpQueue() {
+  if (isWriting || outgoingQueue.length === 0) return;
+  isWriting = true;
+  const job = outgoingQueue.shift();
+  bluetoothSerial.write(job.str, () => {
+    isWriting = false;
+    if (job.onOk) job.onOk();
+    pumpQueue();
+  }, (err) => {
+    isWriting = false;
+    if (job.onFail) job.onFail(err);
+    pumpQueue();
+  });
+}
+
+function handleIncomingFrame(line) {
+  if (line.startsWith(FRAME_TEXT)) {
+    try {
+      const payload = JSON.parse(line.slice(FRAME_TEXT.length));
+      appendTextMessage(payload.text, 'received', payload.ts);
+      saveHistoryEntry({ kind: 'text', dir: 'received', text: payload.text, ts: payload.ts });
+    } catch (e) { /* ignore malformed frame */ }
+    return;
+  }
+
+  if (line.startsWith(FRAME_START)) {
+    try {
+      const meta = JSON.parse(line.slice(FRAME_START.length));
+      incomingTransfer = {
+        id: meta.id, name: meta.name, mime: meta.mime, size: meta.size,
+        totalChunks: meta.totalChunks, chunks: new Array(meta.totalChunks),
+        received: 0, ts: meta.ts,
+        bubbleEl: appendFileMessage(meta, 'received', 0)
+      };
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+  if (line.startsWith(FRAME_CHUNK)) {
+    const rest = line.slice(FRAME_CHUNK.length);
+    const sep = rest.indexOf('|');
+    if (sep === -1) return;
+    try {
+      const header = JSON.parse(rest.slice(0, sep));
+      const data = rest.slice(sep + 1);
+      if (incomingTransfer && incomingTransfer.id === header.id) {
+        incomingTransfer.chunks[header.index] = data;
+        incomingTransfer.received++;
+        const pct = Math.round((incomingTransfer.received / incomingTransfer.totalChunks) * 100);
+        updateFileProgress(incomingTransfer.bubbleEl, pct, false);
+      }
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+  if (line.startsWith(FRAME_END)) {
+    try {
+      const header = JSON.parse(line.slice(FRAME_END.length));
+      if (incomingTransfer && incomingTransfer.id === header.id) {
+        const base64 = incomingTransfer.chunks.join('');
+        finalizeReceivedFile(incomingTransfer, base64);
+        incomingTransfer = null;
+      }
+    } catch (e) { /* ignore */ }
+    return;
+  }
+}
+
+function finalizeReceivedFile(transfer, base64) {
+  updateFileProgress(transfer.bubbleEl, 100, true);
+
+  const isImage = transfer.mime.startsWith('image/');
+  if (isImage) {
+    const dataUrl = `data:${transfer.mime};base64,${base64}`;
+    convertBubbleToImage(transfer.bubbleEl, dataUrl);
+  } else {
+    attachDownloadHandler(transfer.bubbleEl, transfer.name, transfer.mime, base64);
+  }
+
+  saveHistoryEntry({
+    kind: 'file', dir: 'received',
+    meta: { id: transfer.id, name: transfer.name, mime: transfer.mime, size: transfer.size, totalChunks: transfer.totalChunks },
+    ts: transfer.ts, base64
+  });
+}
+
+/* =========================================================
+   RENDERING
+   ========================================================= */
+function ensureChatNotEmpty() {
+  const empty = document.querySelector('.empty-state');
+  if (empty) empty.remove();
+}
+
+function appendTextMessage(text, dir, ts) {
+  ensureChatNotEmpty();
+  const chatBox = document.getElementById('chat-box');
+  const row = document.createElement('div');
+  row.className = `msg-row ${dir}`;
+  const bubble = document.createElement('div');
+  bubble.className = 'bubble';
+  bubble.innerHTML = renderFormattedText(text);
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = formatTime(ts);
+  row.appendChild(bubble);
+  row.appendChild(meta);
+  chatBox.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return row;
+}
+
+function appendFileMessage(meta, dir, pct) {
+  ensureChatNotEmpty();
+  const chatBox = document.getElementById('chat-box');
+  const row = document.createElement('div');
+  row.className = `msg-row ${dir}`;
+
+  const bubble = document.createElement('div');
+  bubble.className = 'file-bubble';
+  bubble.innerHTML = `
+    <div class="file-icon">${fileIconSvg(meta.mime)}</div>
+    <div class="file-info">
+      <div class="file-name">${escapeHTML(meta.name)}</div>
+      <div class="file-sub">${formatBytes(meta.size)} · ${dir === 'sent' ? 'Sending' : 'Receiving'}</div>
+      <div class="progress-track"><div class="progress-fill" style="width:${pct}%"></div></div>
+    </div>
+  `;
+
+  const metaEl = document.createElement('div');
+  metaEl.className = 'meta';
+  metaEl.textContent = formatTime(meta.ts || Date.now());
+
+  row.appendChild(bubble);
+  row.appendChild(metaEl);
+  chatBox.appendChild(row);
+  chatBox.scrollTop = chatBox.scrollHeight;
+  return row;
+}
+
+function updateFileProgress(rowEl, pct, done) {
+  if (!rowEl) return;
+  const fill = rowEl.querySelector('.progress-fill');
+  const sub = rowEl.querySelector('.file-sub');
+  if (fill) fill.style.width = pct + '%';
+  if (sub && done) {
+    const parts = sub.textContent.split(' · ');
+    sub.textContent = parts[0] + ' · Complete';
+  }
+}
+
+function convertBubbleToImage(rowEl, dataUrl) {
+  const fileBubble = rowEl.querySelector('.file-bubble');
+  if (!fileBubble) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'img-bubble';
+  wrap.innerHTML = `<img src="${dataUrl}" alt="Received image">`;
+  wrap.onclick = () => openLightbox(dataUrl);
+  fileBubble.replaceWith(wrap);
+}
+
+function attachDownloadHandler(rowEl, name, mime, base64) {
+  const fileBubble = rowEl.querySelector('.file-bubble');
+  if (!fileBubble) return;
+  fileBubble.style.cursor = 'pointer';
+  fileBubble.onclick = () => downloadBase64File(name, mime, base64);
+}
+
+function downloadBase64File(name, mime, base64) {
+  const link = document.createElement('a');
+  link.href = `data:${mime};base64,${base64}`;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function openLightbox(src) {
+  document.getElementById('lightbox-img').src = src;
+  document.getElementById('lightbox').classList.remove('hidden');
+}
+function closeLightbox() {
+  document.getElementById('lightbox').classList.add('hidden');
+  document.getElementById('lightbox-img').src = '';
+}
+
+function fileIconSvg(mime) {
+  if (mime && mime.startsWith('video/')) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>';
+  }
+  return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>';
+}
+
+/* =========================================================
+   HISTORY (persisted in localStorage so chat survives relaunch)
+   ========================================================= */
+const HISTORY_KEY = 'bt_chat_history_v1';
+const HISTORY_LIMIT = 200; // cap stored entries; large files are heavy in localStorage
+
+function saveHistoryEntry(entry) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]');
+    arr.push(entry);
+    while (arr.length > HISTORY_LIMIT) arr.shift();
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(arr));
+  } catch (e) {
+    // localStorage quota exceeded (large files) - drop silently rather than crash the chat
+  }
+}
+
+function loadHistory() {
+  let arr = [];
+  try { arr = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { arr = []; }
+
+  const chatBox = document.getElementById('chat-box');
+  chatBox.innerHTML = '';
+
+  if (arr.length === 0) {
+    showEmptyState();
+    return;
+  }
+
+  arr.forEach(entry => {
+    if (entry.kind === 'text') {
+      appendTextMessage(entry.text, entry.dir, entry.ts);
+    } else if (entry.kind === 'file') {
+      const row = appendFileMessage({ ...entry.meta, ts: entry.ts }, entry.dir, 100);
+      if (entry.meta.mime && entry.meta.mime.startsWith('image/')) {
+        convertBubbleToImage(row, `data:${entry.meta.mime};base64,${entry.base64}`);
+      } else {
+        attachDownloadHandler(row, entry.meta.name, entry.meta.mime, entry.base64);
+      }
     }
-  </script>
+  });
+}
+
+function showEmptyState() {
+  const chatBox = document.getElementById('chat-box');
+  chatBox.innerHTML = `
+    <div class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+      <h3>No messages yet</h3>
+      <p>Connect to a paired device and send your first message, photo, or file.</p>
+    </div>
+  `;
+}
+
+function clearChat() {
+  if (!confirm('Clear this conversation? This only clears your local view, not the other device.')) return;
+  localStorage.removeItem(HISTORY_KEY);
+  showEmptyState();
+}
+
+/* =========================================================
+   CONFIG MODAL
+   ========================================================= */
+function openConfig() {
+  document.getElementById('config-modal').classList.remove('hidden');
+  document.getElementById('modal-close-btn').style.display = targetAddress ? 'flex' : 'none';
+  fetchPairedDevices();
+}
+function closeConfig() {
+  if (!targetAddress) return; // must select a device on first run
+  document.getElementById('config-modal').classList.add('hidden');
+}
+
+function fetchPairedDevices() {
+  bluetoothSerial.list((devices) => {
+    const select = document.getElementById('device-select');
+    select.innerHTML = '<option value="">-- Select target device --</option>';
+    devices.forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.address;
+      opt.textContent = `${d.name || 'Unknown'} (${d.address})`;
+      if (d.address === targetAddress) opt.selected = true;
+      select.appendChild(opt);
+    });
+  }, () => alert("Could not fetch paired devices. Check Android Bluetooth settings."));
+}
+
+function saveAndConnect() {
+  const select = document.getElementById('device-select');
+  if (!select.value) {
+    alert("Select a device first.");
+    return;
+  }
+
+  targetAddress = select.value;
+  const selectedOption = select.options[select.selectedIndex].text;
+  peerLabel = selectedOption.split(' (')[0];
+
+  localStorage.setItem('target_mac', targetAddress);
+  localStorage.setItem('target_name', peerLabel);
+
+  document.getElementById('peer-name').textContent = peerLabel;
+  document.getElementById('config-modal').classList.add('hidden');
+  startAutoConnectLoop();
+}
+
+/* =========================================================
+   UTIL
+   ========================================================= */
+function escapeHTML(str) {
+  return str.replace(/[&<>'"]/g,
+    tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+  );
+}
+
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function cryptoId() {
+  return 'x' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+}
+</script>
 </body>
 </html>
