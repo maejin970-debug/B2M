@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Offline BT Chat</title>
+  <style>
+    :root {
+      --bg-color: #121826;
+      --card-bg: #1e293b;
+      --accent-color: #3b82f6;
+      --text-color: #f8fafc;
+      --online-color: #10b981;
+      --offline-color: #ef4444;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Header Bar */
+    header {
+      background-color: var(--card-bg);
+      padding: 15px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #334155;
+    }
+
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .status-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: var(--offline-color);
+      transition: background-color 0.3s ease;
+    }
+
+    .status-dot.online {
+      background-color: var(--online-color);
+      box-shadow: 0 0 8px var(--online-color);
+    }
+
+    .title-area h2 {
+      font-size: 1.1rem;
+    }
+
+    .title-area p {
+      font-size: 0.75rem;
+      color: #94a3b8;
+    }
+
+    .btn-settings {
+      background: none;
+      border: none;
+      color: var(--text-color);
+      font-size: 1.2rem;
+      cursor: pointer;
+    }
+
+    /* Message Area */
+    #chat-box {
+      flex: 1;
+      padding: 15px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .msg {
+      max-width: 75%;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .msg.sent {
+      align-self: flex-end;
+      background-color: var(--accent-color);
+      color: #fff;
+      border-bottom-right-radius: 2px;
+    }
+
+    .msg.received {
+      align-self: flex-start;
+      background-color: var(--card-bg);
+      color: var(--text-color);
+      border-bottom-left-radius: 2px;
+    }
+
+    .msg .time {
+      font-size: 0.65rem;
+      opacity: 0.7;
+      margin-top: 4px;
+      text-align: right;
+    }
+
+    /* Input Controls */
+    footer {
+      background-color: var(--card-bg);
+      padding: 10px 15px;
+      display: flex;
+      gap: 10px;
+      border-top: 1px solid #334155;
+    }
+
+    footer input {
+      flex: 1;
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      color: var(--text-color);
+      padding: 12px 16px;
+      border-radius: 24px;
+      outline: none;
+    }
+
+    footer button {
+      background-color: var(--accent-color);
+      border: none;
+      color: white;
+      padding: 0 18px;
+      border-radius: 24px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    /* Config Overlay */
+    #config-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.85);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 20px;
+      z-index: 10;
+    }
+
+    .modal-content {
+      background-color: var(--card-bg);
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .modal-content h3 {
+      margin-bottom: 12px;
+    }
+
+    .modal-content select, .modal-content button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    .modal-content select {
+      background: #0f172a;
+      color: white;
+    }
+
+    .modal-content button {
+      background: var(--accent-color);
+      color: white;
+      font-weight: bold;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- App Header -->
+  <header>
+    <div class="user-info">
+      <div id="status-dot" class="status-dot"></div>
+      <div class="title-area">
+        <h2 id="peer-name">Offline Contact</h2>
+        <p id="status-text">Disconnected</p>
+      </div>
+    </div>
+    <button class="btn-settings" onclick="openConfig()">⚙️</button>
+  </header>
+
+  <!-- Chat Log -->
+  <main id="chat-box"></main>
+
+  <!-- Message Input Bar -->
+  <footer>
+    <input type="text" id="msg-input" placeholder="Type a message..." />
+    <button onclick="sendMessage()">Send</button>
+  </footer>
+
+  <!-- Setup Overlay (First Launch Only) -->
+  <div id="config-modal">
+    <div class="modal-content">
+      <h3>Target Device Setup</h3>
+      <p style="font-size:0.85rem; color:#94a3b8;">Ensure Mobile B is paired in phone settings first.</p>
+      
+      <button onclick="fetchPairedDevices()">1. Scan Paired Devices</button>
+
+      <select id="device-select">
+        <option value="">-- Select Target Device --</option>
+      </select>
+
+      <button onclick="saveAndConnect()">2. Save Target & Auto-Connect</button>
+    </div>
+  </div>
+
+  <script>
+    let targetAddress = localStorage.getItem('target_mac') || null;
+    let isConnected = false;
+    let checkInterval = null;
+
+    document.addEventListener('deviceready', onDeviceReady, false);
+
+    function onDeviceReady() {
+      // 1. Check if Bluetooth is enabled
+      bluetoothSerial.isEnabled(
+        () => initBluetooth(),
+        () => {
+          bluetoothSerial.enable(
+            () => initBluetooth(),
+            () => alert("Bluetooth access is required for offline chat.")
+          );
+        }
+      );
+    }
+
+    function initBluetooth() {
+      // Start listening for incoming connections from Mobile B
+      bluetoothSerial.listen(
+        () => updateStatus(true),
+        () => updateStatus(false)
+      );
+
+      // Listen for incoming message strings
+      bluetoothSerial.subscribe('\n', (data) => {
+        appendMessage(data.trim(), 'received');
+      });
+
+      // If target device is already saved, launch auto-connect sequence
+      if (targetAddress) {
+        document.getElementById('config-modal').classList.add('hidden');
+        startAutoConnectLoop();
+      }
+    }
+
+    // Attempt background reconnection every 3 seconds until connected
+    function startAutoConnectLoop() {
+      attemptConnection();
+      checkInterval = setInterval(() => {
+        if (!isConnected) {
+          attemptConnection();
+        }
+      }, 3000);
+    }
+
+    function attemptConnection() {
+      bluetoothSerial.isConnected(
+        () => updateStatus(true),
+        () => {
+          updateStatus(false);
+          // Try background connection to target MAC address
+          bluetoothSerial.connect(
+            targetAddress,
+            () => updateStatus(true),
+            () => updateStatus(false)
+          );
+        }
+      );
+    }
+
+    function sendMessage() {
+      const input = document.getElementById('msg-input');
+      const text = input.value.trim();
+
+      if (!text) return;
+      if (!isConnected) {
+        alert("Cannot send. Target device is currently offline.");
+        return;
+      }
+
+      // Append newline character as message delimiter
+      bluetoothSerial.write(text + "\n", () => {
+        appendMessage(text, 'sent');
+        input.value = '';
+      }, () => {
+        alert("Failed to deliver message.");
+      });
+    }
+
+    function appendMessage(text, type) {
+      const chatBox = document.getElementById('chat-box');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `msg ${type}`;
+      
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      msgDiv.innerHTML = `${escapeHTML(text)}<div class="time">${timeStr}</div>`;
+
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function updateStatus(connected) {
+      isConnected = connected;
+      const dot = document.getElementById('status-dot');
+      const text = document.getElementById('status-text');
+
+      if (connected) {
+        dot.classList.add('online');
+        text.textContent = 'Online';
+      } else {
+        dot.classList.remove('online');
+        text.textContent = 'Offline (Searching...)';
+      }
+    }
+
+    /* Modal / Config Logic */
+    function openConfig() {
+      document.getElementById('config-modal').classList.remove('hidden');
+      fetchPairedDevices();
+    }
+
+    function fetchPairedDevices() {
+      bluetoothSerial.list((devices) => {
+        const select = document.getElementById('device-select');
+        select.innerHTML = '<option value="">-- Select Target Device --</option>';
+        devices.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.address;
+          opt.textContent = `${d.name || 'Unknown'} (${d.address})`;
+          select.appendChild(opt);
+        });
+      }, () => alert("Could not fetch paired devices. Check Android Bluetooth settings."));
+    }
+
+    function saveAndConnect() {
+      const select = document.getElementById('device-select');
+      if (!select.value) {
+        alert("Select a device first.");
+        return;
+      }
+
+      targetAddress = select.value;
+      localStorage.setItem('target_mac', targetAddress);
+      
+      const selectedOption = select.options[select.selectedIndex].text;
+      document.getElementById('peer-name').textContent = selectedOption.split(' (')[0];
+
+      document.getElementById('config-modal').classList.add('hidden');
+      startAutoConnectLoop();
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+  </script>
+</body>
+</html>
