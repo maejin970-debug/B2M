@@ -27,14 +27,18 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Reset package.json (avoid stale/bad pinned versions from earlier attempts)
+        run: |
+          rm -f package.json package-lock.json
+          npm init -y
+
       - name: Install Capacitor CLI and core packages (pinned)
         run: |
-          npm init -y
           npm install @capacitor/core@6.2.0 @capacitor/android@6.2.0 --save
           npm install @capacitor/cli@6.2.0 --save-dev
 
-      - name: Install Bluetooth Serial plugin
-        run: npm install cordova-plugin-bluetooth-serial --save
+      - name: Install Bluetooth Serial plugin (latest is 0.4.7 - no 0.4.8 exists)
+        run: npm install cordova-plugin-bluetooth-serial@0.4.7 --save
 
       - name: Verify www/ contains the app
         run: |
