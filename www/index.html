@@ -546,6 +546,40 @@
     cursor: pointer;
   }
 
+  .role-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 6px;
+  }
+  .role-btn {
+    background: var(--raised);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    cursor: pointer;
+  }
+  .role-btn .role-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--text);
+  }
+  .role-btn .role-desc {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.3;
+  }
+  .role-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-dim);
+  }
+  .role-btn.active .role-title { color: var(--accent); }
+
   .hidden { display: none !important; }
 
   /* Scrollbars */
@@ -650,16 +684,29 @@
 <div id="config-modal" class="hidden">
   <div class="modal-content">
     <button class="modal-close" id="modal-close-btn" onclick="closeConfig()">&times;</button>
-    <h3>Target Device Setup</h3>
-    <p class="sub">Ensure the other device is paired in your phone's Bluetooth settings first, then select it below.</p>
+    <h3>Connection Setup</h3>
+    <p class="sub">Classic Bluetooth needs one device to <b>host</b> (wait) and the other to <b>join</b> (connect to it) — like a phone call, one side has to dial. Pick one role per device; don't set both devices the same way.</p>
 
-    <button class="modal-btn" onclick="fetchPairedDevices()">Scan paired devices</button>
+    <div class="role-toggle">
+      <button class="role-btn" id="role-host-btn" onclick="selectRole('host')">
+        <span class="role-title">Host</span>
+        <span class="role-desc">Wait for the other device to connect</span>
+      </button>
+      <button class="role-btn" id="role-join-btn" onclick="selectRole('join')">
+        <span class="role-title">Join</span>
+        <span class="role-desc">Connect to the other device</span>
+      </button>
+    </div>
 
-    <select id="device-select">
-      <option value="">-- Select target device --</option>
-    </select>
+    <div id="join-fields" class="hidden">
+      <p class="sub" style="margin-top:14px; margin-bottom:0;">Ensure the other device is paired in your phone's Bluetooth settings first, then select it below.</p>
+      <button class="modal-btn" onclick="fetchPairedDevices()">Scan paired devices</button>
+      <select id="device-select">
+        <option value="">-- Select target device --</option>
+      </select>
+    </div>
 
-    <button class="modal-btn primary" onclick="saveAndConnect()">Save target &amp; connect</button>
+    <button class="modal-btn primary" id="save-config-btn" onclick="saveAndConnect()" disabled>Save &amp; connect</button>
   </div>
 </div>
 
@@ -674,6 +721,8 @@
    ========================================================= */
 let targetAddress = localStorage.getItem('target_mac') || null;
 let peerLabel = localStorage.getItem('target_name') || 'Offline Contact';
+let deviceRole = localStorage.getItem('device_role') || null; // 'host' or 'join'
+let pendingRole = null; // role chosen in the modal before saving
 let isConnected = false;
 let checkInterval = null;
 let sendingLock = false;
@@ -712,24 +761,65 @@ function onDeviceReady() {
 }
 
 function initBluetooth() {
-  bluetoothSerial.listen(
-    () => updateStatus(true),
-    () => updateStatus(false)
-  );
-
   // Frames are newline-delimited; base64 payloads never contain '\n' so this delimiter stays safe.
   bluetoothSerial.subscribe('\n', (data) => {
     handleIncomingFrame(data.replace(/\r?\n$/, ''));
   });
 
-  if (targetAddress) {
-    startAutoConnectLoop();
+  if (deviceRole === 'host') {
+    startHosting();
+  } else if (deviceRole === 'join' && targetAddress) {
+    startJoining();
   } else {
     openConfig();
   }
 }
 
-function startAutoConnectLoop() {
+/* HOST role: only ever listens for an incoming connection. Never dials out.
+   Classic Bluetooth Serial (RFCOMM) is a single two-party link - if both
+   sides try to listen AND connect at once, they race each other and you get
+   exactly the symptom of "one side online, other stuck searching, messages
+   one-way" - so each device must commit to exactly one role. */
+function startHosting() {
+  if (checkInterval) clearInterval(checkInterval);
+  armListenLoop();
+}
+
+function armListenLoop() {
+  bluetoothSerial.isConnected(
+    () => updateStatus(true),
+    () => {
+      updateStatus(false, true);
+      bluetoothSerial.listen(
+        () => {
+          updateStatus(true);
+        },
+        () => {
+          updateStatus(false, true);
+          // listen() failure callback also fires on disconnect - re-arm after a short delay
+          setTimeout(armListenLoop, 2000);
+        }
+      );
+    }
+  );
+  // Poll periodically in case the accepted connection silently drops
+  if (!checkInterval) {
+    checkInterval = setInterval(() => {
+      bluetoothSerial.isConnected(
+        () => updateStatus(true),
+        () => {
+          if (isConnected) {
+            updateStatus(false, true);
+            armListenLoop();
+          }
+        }
+      );
+    }, 3000);
+  }
+}
+
+/* JOIN role: only ever dials out to the saved target address. Never listens. */
+function startJoining() {
   if (checkInterval) clearInterval(checkInterval);
   attemptConnection();
   checkInterval = setInterval(() => {
@@ -763,7 +853,7 @@ function updateStatus(connected, searching) {
     text.textContent = 'ONLINE';
   } else if (searching) {
     indicator.classList.add('searching');
-    text.textContent = 'SEARCHING...';
+    text.textContent = deviceRole === 'host' ? 'WAITING FOR PEER...' : 'CONNECTING...';
   } else {
     indicator.classList.add('offline');
     text.textContent = 'DISCONNECTED';
@@ -1209,12 +1299,44 @@ function clearChat() {
    ========================================================= */
 function openConfig() {
   document.getElementById('config-modal').classList.remove('hidden');
-  document.getElementById('modal-close-btn').style.display = targetAddress ? 'flex' : 'none';
-  fetchPairedDevices();
+  document.getElementById('modal-close-btn').style.display = deviceRole ? 'flex' : 'none';
+
+  pendingRole = deviceRole;
+  reflectRoleUI();
+
+  if (pendingRole === 'join' || !pendingRole) {
+    fetchPairedDevices();
+  }
 }
 function closeConfig() {
-  if (!targetAddress) return; // must select a device on first run
+  if (!deviceRole) return; // must finish setup on first run
   document.getElementById('config-modal').classList.add('hidden');
+}
+
+function selectRole(role) {
+  pendingRole = role;
+  reflectRoleUI();
+  if (role === 'join') fetchPairedDevices();
+}
+
+function reflectRoleUI() {
+  const hostBtn = document.getElementById('role-host-btn');
+  const joinBtn = document.getElementById('role-join-btn');
+  const joinFields = document.getElementById('join-fields');
+  const saveBtn = document.getElementById('save-config-btn');
+
+  hostBtn.classList.toggle('active', pendingRole === 'host');
+  joinBtn.classList.toggle('active', pendingRole === 'join');
+  joinFields.classList.toggle('hidden', pendingRole !== 'join');
+
+  if (pendingRole === 'host') {
+    saveBtn.disabled = false;
+  } else if (pendingRole === 'join') {
+    const select = document.getElementById('device-select');
+    saveBtn.disabled = !select.value;
+  } else {
+    saveBtn.disabled = true;
+  }
 }
 
 function fetchPairedDevices() {
@@ -1228,26 +1350,44 @@ function fetchPairedDevices() {
       if (d.address === targetAddress) opt.selected = true;
       select.appendChild(opt);
     });
+    select.onchange = () => reflectRoleUI();
   }, () => alert("Could not fetch paired devices. Check Android Bluetooth settings."));
 }
 
 function saveAndConnect() {
-  const select = document.getElementById('device-select');
-  if (!select.value) {
-    alert("Select a device first.");
+  if (!pendingRole) {
+    alert("Choose a role first: Host or Join.");
     return;
   }
 
-  targetAddress = select.value;
-  const selectedOption = select.options[select.selectedIndex].text;
-  peerLabel = selectedOption.split(' (')[0];
+  if (pendingRole === 'join') {
+    const select = document.getElementById('device-select');
+    if (!select.value) {
+      alert("Select a device to join first.");
+      return;
+    }
+    targetAddress = select.value;
+    const selectedOption = select.options[select.selectedIndex].text;
+    peerLabel = selectedOption.split(' (')[0];
+    localStorage.setItem('target_mac', targetAddress);
+    localStorage.setItem('target_name', peerLabel);
+  } else {
+    // Hosting: we don't know who will connect until they do
+    peerLabel = 'Waiting for peer';
+    localStorage.setItem('target_name', peerLabel);
+  }
 
-  localStorage.setItem('target_mac', targetAddress);
-  localStorage.setItem('target_name', peerLabel);
+  deviceRole = pendingRole;
+  localStorage.setItem('device_role', deviceRole);
 
   document.getElementById('peer-name').textContent = peerLabel;
   document.getElementById('config-modal').classList.add('hidden');
-  startAutoConnectLoop();
+
+  if (deviceRole === 'host') {
+    startHosting();
+  } else {
+    startJoining();
+  }
 }
 
 /* =========================================================
