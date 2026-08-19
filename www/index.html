@@ -746,7 +746,39 @@ document.addEventListener('deviceready', onDeviceReady, false);
 
 function onDeviceReady() {
   document.getElementById('peer-name').textContent = peerLabel;
+  loadHistory();
+  requestBluetoothPermissions();
+}
 
+/* Android 12+ (API 31) requires runtime requests for BLUETOOTH_CONNECT and
+   BLUETOOTH_SCAN - the underlying bluetoothSerial plugin predates this and
+   never asks for them, so calls silently fail on newer Android with no
+   error surfaced to JS. cordova-plugin-android-permissions patches that gap.
+   On Android < 12 this plugin auto-resolves as granted, so this is safe
+   to call unconditionally on every device. */
+function requestBluetoothPermissions() {
+  if (!window.cordova || !cordova.plugins || !cordova.plugins.permissions) {
+    // Permissions plugin missing for some reason - fall back to trying anyway
+    proceedToBluetoothInit();
+    return;
+  }
+
+  const perms = cordova.plugins.permissions;
+  const needed = [
+    perms.BLUETOOTH_CONNECT,
+    perms.BLUETOOTH_SCAN,
+    perms.ACCESS_FINE_LOCATION
+  ].filter(Boolean); // older plugin versions may not define BLUETOOTH_* consts
+
+  perms.requestPermissions(needed, (status) => {
+    proceedToBluetoothInit();
+  }, () => {
+    alert("Bluetooth permission was denied. Go to Android Settings > Apps > Signal Link > Permissions and allow Nearby devices / Location, then reopen the app.");
+    proceedToBluetoothInit(); // still try - older Android doesn't need this
+  });
+}
+
+function proceedToBluetoothInit() {
   bluetoothSerial.isEnabled(
     () => initBluetooth(),
     () => {
@@ -756,8 +788,6 @@ function onDeviceReady() {
       );
     }
   );
-
-  loadHistory();
 }
 
 function initBluetooth() {
